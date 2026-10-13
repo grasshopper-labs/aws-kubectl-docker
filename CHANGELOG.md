@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ECR Public push no longer assumes a preinstalled AWS CLI.** The
+  `ecr-public-publisher` runner only had docker and shell tools; `aws`
+  was missing and the push failed. Push and sha-tag cleanup now install a
+  checksum-pinned AWS CLI v2 into a temp directory (no sudo), same idea as
+  crane and cosign.
 - **The pinning claim names its one exception.** The README said every
   third-party Action is pinned to a commit SHA; the SLSA generator in
   `release-assets.yml` is pinned by tag, as it must be, and Scorecard counts
