@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **README rewritten for this repository.** The upstream Docker Hub guide is
+  replaced with the image this `Dockerfile` builds, the tags
+  `publish.yml` and `scripts/push-ecr-public.sh` actually push (including
+  the cosign signature), the `ecr-public-publisher` job, and how a
+  `v*.*.*` tag becomes a GitHub Release.
 - **Images publish to ECR Public instead of Docker Hub.** GitHub-hosted
   runners build `linux/amd64` and `linux/arm64` and upload an OCI layout.
   `ecr-public-publisher` pushes `public.ecr.aws/grasshopper/aws-kubectl`
