@@ -10,8 +10,8 @@ name: ECR Public tag cleanup
 # unless dry_run is set to false.
 #
 # This workflow has no pull_request trigger. The job if is still an allowlist,
-# so adding one later does not schedule the runner. Forks of this repository
-# do not run it either.
+# so adding one later does not schedule the runner. Schedule and manual runs
+# must be on main. Forks of this repository do not run it either.
 
 on:
   schedule:
@@ -44,6 +44,7 @@ jobs:
     runs-on: ecr-public-publisher
     if: >-
       github.event.repository.fork == false &&
+      github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 10
     steps:
