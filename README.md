@@ -1,10 +1,9 @@
 # aws-kubectl Docker Image
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/heyvaldemar/aws-kubectl.svg)](https://hub.docker.com/r/heyvaldemar/aws-kubectl)
-[![Docker Image Size](https://img.shields.io/docker/image-size/heyvaldemar/aws-kubectl/latest.svg)](https://hub.docker.com/r/heyvaldemar/aws-kubectl/tags)
-[![Build Status](https://github.com/heyvaldemar/aws-kubectl-docker/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/heyvaldemar/aws-kubectl-docker/actions/workflows/publish.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/heyvaldemar/aws-kubectl-docker/badge)](https://scorecard.dev/viewer/?uri=github.com/heyvaldemar/aws-kubectl-docker)
-[![Cosign Verified](https://img.shields.io/badge/cosign-verified-brightgreen?logo=sigstore)](https://github.com/heyvaldemar/aws-kubectl-docker/attestations)
+[![ECR Public](https://img.shields.io/badge/ECR_Public-grasshopper%2Faws--kubectl-FF9900?logo=amazon-aws)](https://gallery.ecr.aws/grasshopper/aws-kubectl)
+[![Build Status](https://github.com/grasshopper-labs/aws-kubectl-docker/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/grasshopper-labs/aws-kubectl-docker/actions/workflows/publish.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/grasshopper-labs/aws-kubectl-docker/badge)](https://scorecard.dev/viewer/?uri=github.com/grasshopper-labs/aws-kubectl-docker)
+[![Cosign Verified](https://img.shields.io/badge/cosign-verified-brightgreen?logo=sigstore)](https://github.com/grasshopper-labs/aws-kubectl-docker/attestations)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14920/badge)](https://www.bestpractices.dev/projects/14920)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -42,7 +41,7 @@
 
 This image bundles AWS CLI v2 (`aws`) and kubectl on Ubuntu 26.04. It also includes `jq`, `curl`, `unzip`, and `envsubst` (from `gettext-base`). Perfect for CI/CD steps, automation, and reproducible local scripting.
 
-🐳 Docker Hub: [heyvaldemar/aws-kubectl](https://hub.docker.com/r/heyvaldemar/aws-kubectl)
+Image: [`public.ecr.aws/grasshopper/aws-kubectl`](https://gallery.ecr.aws/grasshopper/aws-kubectl)
 
 ## Why this image?
 
@@ -75,18 +74,18 @@ You can also run the container with no mounts for `aws --version`, `kubectl vers
 # List S3 buckets (requires ~/.aws)
 docker run --rm --user "$(id -u):0" \
   -v ~/.aws:/home/app/.aws \
-  heyvaldemar/aws-kubectl aws s3 ls
+  public.ecr.aws/grasshopper/aws-kubectl aws s3 ls
 
 # Get Kubernetes nodes (requires ~/.kube)
 docker run --rm --user "$(id -u):0" \
   -v ~/.kube:/home/app/.kube \
-  heyvaldemar/aws-kubectl kubectl get nodes
+  public.ecr.aws/grasshopper/aws-kubectl kubectl get nodes
 
 # Interactive shell with both
 docker run -it --user "$(id -u):0" \
   -v ~/.aws:/home/app/.aws \
   -v ~/.kube:/home/app/.kube \
-  heyvaldemar/aws-kubectl bash
+  public.ecr.aws/grasshopper/aws-kubectl bash
 ```
 
 Runs as non-root by default (UID 10001). See [Mounting credentials](#mounting-credentials) for permission details.
@@ -95,16 +94,18 @@ Runs as non-root by default (UID 10001). See [Mounting credentials](#mounting-cr
 
 ## Pinning guidance
 
-For production use, pin to immutable semver tags:
+For production use, pin to an exact semver tag. The publish job will not move an exact semver tag, a `sha-*` tag, or a `kube-*` tag that already exists. ECR Public does not enforce that itself.
 
-- ✅ Stable: `heyvaldemar/aws-kubectl:2.2.1`, immutable on Docker Hub, never purged, cosign-signed
-- ⛔ Unsigned: `2.2.0`, `v2.2.0` and `kube-v1.37.1` (one digest) were published without a cosign signature and, being immutable, stay unsigned. Use `2.2.1` instead; see the [CHANGELOG](CHANGELOG.md).
-- ⚠️ Fragile: `heyvaldemar/aws-kubectl:sha-1dfda81`. Short-SHA tags are deleted after 90 days
+- ✅ Stable: `public.ecr.aws/grasshopper/aws-kubectl:<version>` (for example `:2.2.1` once that release is published from this repository). Cosign-signed. Not moved after the first push.
+- ⚠️ Rolling: `:2` and `:2.2` move to the newest matching release. `:latest` and `:edge` move on every build of `main`, including the weekly rebuild.
+- ⚠️ Fragile: `public.ecr.aws/grasshopper/aws-kubectl:sha-1dfda81`. A short-SHA tag is removed after 90 days only when it is the only tag on its digest.
 
-If you pin by manifest digest (recommended for maximum supply chain integrity), make sure the digest is also referenced by a semver tag. Otherwise the digest may become unpullable once short-SHA cleanup runs. To resolve a tag to its current digest:
+Tags that were published on Docker Hub as `heyvaldemar/aws-kubectl` are not copied into this registry. That includes the unsigned `2.2.0` / `v2.2.0` / `kube-v1.37.1` digest and the frozen `v1-maintenance` tag.
+
+If you pin by manifest digest, make sure a semver tag still points at it. A digest whose only tag was `sha-*` can be deleted after 90 days. To resolve a tag to its current digest:
 
 ```bash
-docker buildx imagetools inspect heyvaldemar/aws-kubectl:2.0.0 \
+docker buildx imagetools inspect public.ecr.aws/grasshopper/aws-kubectl:latest \
   --format '{{.Manifest.Digest}}'
 ```
 
@@ -139,16 +140,16 @@ docker buildx imagetools inspect heyvaldemar/aws-kubectl:2.0.0 \
 - CI lints the Dockerfile with `hadolint` and shell scripts with `shellcheck` before any build runs.
 - Every third-party GitHub Action is pinned to a commit SHA with a version comment, with one exception: `release-assets.yml` calls the SLSA generator's reusable workflow by tag (`@v2.1.0`), because the generator verifies its own reference at run time and refuses a SHA. OpenSSF Scorecard counts that line against Pinned-Dependencies.
 - Build arguments `VCS_REF` and `BUILD_DATE` are stamped into `org.opencontainers.image.revision` and `org.opencontainers.image.created`, and the resolved kubectl release is exposed via `io.heyvaldemar.kubectl.version` and `/etc/kube-version`.
-- Every published digest is cosign-signed via Sigstore keyless OIDC using the GitHub Actions identity for this repository, with one exception: the 2.2.0 release image (`2.2.0`, `v2.2.0`, `kube-v1.37.1`), whose run stopped before signing. See the CHANGELOG.
+- Every digest this workflow publishes is cosign-signed via Sigstore keyless OIDC using the GitHub Actions identity for this repository. The unsigned Docker Hub tags `2.2.0`, `v2.2.0`, and `kube-v1.37.1` were not copied here.
 - **SBOM** (SPDX, generated by BuildKit) and SLSA build provenance (`provenance: mode=max`) are attached to every published image.
-- **GitHub native build provenance** is attested via `actions/attest-build-provenance` and stored in [GitHub Attestations](https://github.com/heyvaldemar/aws-kubectl-docker/attestations). Registry push is disabled because Docker Hub's OCI referrer credential handoff proved unreliable in early Phase 2 hotfix testing. See [CHANGELOG](CHANGELOG.md) `[2.0.0]` CI section for context.
+- **GitHub native build provenance** is attested via `actions/attest-build-provenance` and stored in [GitHub Attestations](https://github.com/grasshopper-labs/aws-kubectl-docker/attestations). It is not pushed to ECR Public: the job that creates it has no registry credentials. BuildKit's SBOM and provenance travel inside the image index that is pushed.
 - **Trivy** scans the published image on every push; CRITICAL and HIGH fixable findings are uploaded as SARIF to the repository's GitHub Security tab.
 
 ### Verifying signatures
 
 ```bash
-cosign verify heyvaldemar/aws-kubectl:latest \
-  --certificate-identity-regexp "https://github.com/heyvaldemar/aws-kubectl-docker/.*" \
+cosign verify public.ecr.aws/grasshopper/aws-kubectl:latest \
+  --certificate-identity-regexp "https://github.com/grasshopper-labs/aws-kubectl-docker/.*" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
@@ -156,13 +157,13 @@ cosign verify heyvaldemar/aws-kubectl:latest \
 
 Tags fall into five categories:
 
-- **Exact semver** (`:2.0.0`, `:v2.0.0`): immutable on Docker Hub; the digest under these tags never changes after first push. Recommended for production pins.
+- **Exact semver** (`:2.0.0`, `:v2.0.0`): the publish job will not move the tag once it exists. Recommended for production pins.
 - **Rolling semver** (`:2.0`, `:2`): mutable; re-targets to the newest patch (and minor) within the major on each release. Kept forever.
-- **Floating channels** (`:latest`, `:edge`): updated on every main build and by the weekly rebuild; kept forever. `:v1-maintenance` is frozen at its 2026-04-22 build (end of support 2026-07-20).
-- **Kubernetes-version pin** (`:kube-v1.36.0`): generated only on semver releases. Tracks the kubectl release packaged into the image at the time of that release. Immutable on Docker Hub; kept forever. `kube-v1.37.1` is unsigned (see Pinning guidance).
-- **Short-SHA builds** (`:sha-<7char>`): produced by CI for every commit to main. Immutable while live; retained for 90 days, then automatically deleted by the `Docker Hub Tag Cleanup` workflow.
+- **Floating channels** (`:latest`, `:edge`): updated on every main build and by the weekly rebuild; kept forever. `:v1-maintenance` is not published to this registry; on Docker Hub it is frozen at its 2026-04-22 build (end of support 2026-07-20).
+- **Kubernetes-version pin** (`:kube-v1.36.0`): generated only on semver releases. Tracks the kubectl release packaged into the image at the time of that release. Not moved once it exists.
+- **Short-SHA builds** (`:sha-<7char>`): produced by CI for every commit to main. Not moved while the tag exists. A digest whose tags are all `sha-*` and older than 90 days is deleted by the `ECR Public tag cleanup` workflow. A `sha-*` tag that shares its digest with another tag is kept, because ECR Public deletes the image, not one tag.
 
-Cosign signatures (`:sha256-<digest>.sig`) are managed by Sigstore and are not deleted.
+Cosign signatures (`:sha256-<digest>.sig`) are managed by Sigstore and are not deleted. The cleanup treats `sha256-` as a signature tag, not a short SHA.
 
 ## Breaking changes in v2.0
 
@@ -186,7 +187,7 @@ ownership or run the container with a matching UID:
 
 ```bash
 docker run --rm -v "$PWD:/home/app" --user "$(id -u):0" \
-  heyvaldemar/aws-kubectl:latest aws s3 ls
+  public.ecr.aws/grasshopper/aws-kubectl:latest aws s3 ls
 ```
 
 **Kubernetes:**
@@ -208,9 +209,11 @@ maintenance track:
 docker pull heyvaldemar/aws-kubectl:v1-maintenance
 ```
 
-The `v1-maintenance` tag reached end of support on July 20, 2026. Its last
-rebuild was on April 22, 2026, so it received no security updates between that
-date and the end of support, and it is now frozen. Pin it only while you migrate.
+That tag was published on Docker Hub only. It is not in
+`public.ecr.aws/grasshopper/aws-kubectl`. It reached end of support on
+July 20, 2026. Its last rebuild was on April 22, 2026, so it received no
+security updates between that date and the end of support, and it is now
+frozen. Pin it only while you migrate to a 2.x tag on ECR Public.
 
 ## Mounting credentials
 
@@ -228,7 +231,7 @@ docker run -it \
   --user "$(id -u):0" \
   -v ~/.aws:/home/app/.aws \
   -v ~/.kube:/home/app/.kube \
-  heyvaldemar/aws-kubectl bash
+  public.ecr.aws/grasshopper/aws-kubectl bash
 ```
 
 If you pulled an amd64-only tag on an ARM/M-series Mac:
@@ -238,7 +241,7 @@ docker run --platform linux/amd64 -it \
   --user "$(id -u):0" \
   -v ~/.aws:/home/app/.aws \
   -v ~/.kube:/home/app/.kube \
-  heyvaldemar/aws-kubectl bash
+  public.ecr.aws/grasshopper/aws-kubectl bash
 ```
 
 ### Execute commands directly (no shell)
@@ -248,13 +251,13 @@ docker run --platform linux/amd64 -it \
 docker run --rm \
   --user "$(id -u):0" \
   -v ~/.aws:/home/app/.aws \
-  heyvaldemar/aws-kubectl aws s3 ls
+  public.ecr.aws/grasshopper/aws-kubectl aws s3 ls
 
 # Get Kubernetes nodes
 docker run --rm \
   --user "$(id -u):0" \
   -v ~/.kube:/home/app/.kube \
-  heyvaldemar/aws-kubectl kubectl get nodes
+  public.ecr.aws/grasshopper/aws-kubectl kubectl get nodes
 ```
 
 ## Build instructions
@@ -266,7 +269,7 @@ The `Dockerfile` accepts the following build arguments:
 | `KUBE_VERSION` | `latest` | Pin a specific `kubectl` release (e.g. `v1.30.6`). `latest` fetches the current stable from `dl.k8s.io`. |
 | `VCS_REF`      | `unknown`| Commit SHA, stamped into `org.opencontainers.image.revision`.             |
 | `BUILD_DATE`   | `unknown`| ISO-8601 build timestamp, stamped into `org.opencontainers.image.created`.|
-| `TARGETARCH`   | auto     | Target architecture (`amd64`/`arm64`). Supplied automatically by `buildx`.|
+| `TARGETARCH`   | auto     | Target architecture. CI publishes `amd64` and `arm64` only. AWS CLI v2 has no armv7 or i386 installer, and the build rejects any other architecture. Supplied automatically by `buildx`.|
 
 ### Local single-arch (dev)
 
@@ -296,7 +299,14 @@ docker build \
 
 ### Multi-arch build & push (amd64 + arm64)
 
+CI builds `linux/amd64` and `linux/arm64` on GitHub-hosted runners and pushes the index from a self-hosted runner. `linux/arm/v7` is not included: the Ubuntu 26.04 base publishes it, and does not publish `linux/386`, but AWS CLI v2 ships installers only for x86_64 and aarch64.
+
+A manual push to the same registry needs an ECR Public login in `us-east-1` (the only region for that API). The repository must already exist.
+
 ```bash
+aws ecr-public get-login-password --region us-east-1 \
+  | docker login --username AWS --password-stdin public.ecr.aws
+
 docker buildx create --name x --use || docker buildx use x
 
 # Generic tag (no OS name in the tag)
@@ -304,7 +314,7 @@ docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --build-arg VCS_REF="$(git rev-parse HEAD)" \
   --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-  -t heyvaldemar/aws-kubectl:latest \
+  -t public.ecr.aws/grasshopper/aws-kubectl:latest \
   --push .
 
 # Or pin kubectl in a tag users can reason about
@@ -314,14 +324,14 @@ docker buildx build \
   --build-arg KUBE_VERSION=$KUBE_VERSION \
   --build-arg VCS_REF="$(git rev-parse HEAD)" \
   --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-  -t heyvaldemar/aws-kubectl:kube-$KUBE_VERSION \
+  -t public.ecr.aws/grasshopper/aws-kubectl:kube-$KUBE_VERSION \
   --push .
 ```
 
 Verify:
 
 ```bash
-docker buildx imagetools inspect heyvaldemar/aws-kubectl:latest
+docker buildx imagetools inspect public.ecr.aws/grasshopper/aws-kubectl:latest
 ```
 
 > Optional supply-chain flags (if you want SBOM/provenance):
@@ -415,7 +425,7 @@ docker run --rm --user "$(id -u):0" \
 If a specific workflow requires root inside the container (e.g. installing additional `apt` packages at runtime, or restoring pre-v2.0 behaviour), override the user:
 
 ```bash
-docker run --rm --user 0:0 heyvaldemar/aws-kubectl bash
+docker run --rm --user 0:0 public.ecr.aws/grasshopper/aws-kubectl bash
 ```
 
 ## Standardization reference
@@ -426,7 +436,7 @@ The patterns in this image are codified as a reusable standard at [`heyvaldemar/
 - Full OCI labels (`org.opencontainers.image.*`)
 - BuildKit attestations (SBOM + SLSA `provenance: mode=max`)
 - Cosign keyless signing via Sigstore (with rationale for pinning Cosign v2.6.1 over v3.x)
-- Tag retention + Docker Hub immutability policy
+- Tag retention. Exact semver, `sha-*`, and `kube-*` are not moved after the first push; sha-only digests older than 90 days are deleted
 - Weekly base-image rebuild via cron
 - Pinning guidance documentation for downstream consumers
 

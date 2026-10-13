@@ -26,6 +26,8 @@ WORKDIR /build
 
 # Resolve architecture (fallback if TARGETARCH not provided).
 # KARCH is for kubectl (amd64|arm64); AWS_ARCH is for AWS CLI (x86_64|aarch64).
+# AWS CLI v2 publishes no installer for armv7 or i386, so CI does not build
+# linux/arm/v7 or linux/386 even though the Ubuntu base has an arm/v7 image.
 # Resolved kubectl version is written to /build/kube-version for the final stage.
 RUN KARCH="${TARGETARCH:-$(dpkg --print-architecture)}" \
  && case "$KARCH" in \
@@ -93,9 +95,9 @@ LABEL org.opencontainers.image.title="aws-kubectl" \
       org.opencontainers.image.description="Ubuntu 26.04 image bundling AWS CLI v2, kubectl, jq, envsubst, curl and ca-certificates for CI/CD and local tooling." \
       org.opencontainers.image.authors="Vladimir Mikhalev <v@valdemar.ai>" \
       org.opencontainers.image.vendor="heyvaldemar" \
-      org.opencontainers.image.source="https://github.com/heyvaldemar/aws-kubectl-docker" \
-      org.opencontainers.image.documentation="https://github.com/heyvaldemar/aws-kubectl-docker#readme" \
-      org.opencontainers.image.url="https://hub.docker.com/r/heyvaldemar/aws-kubectl" \
+      org.opencontainers.image.source="https://github.com/grasshopper-labs/aws-kubectl-docker" \
+      org.opencontainers.image.documentation="https://github.com/grasshopper-labs/aws-kubectl-docker#readme" \
+      org.opencontainers.image.url="https://gallery.ecr.aws/grasshopper/aws-kubectl" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \

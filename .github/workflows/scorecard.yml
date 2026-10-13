@@ -4,7 +4,7 @@ on:
   branch_protection_rule:
   schedule:
     # Weekly on Tuesdays at 06:00 UTC — after the Monday rebuild (publish.yml,
-    # 06:00 UTC) and Monday cleanup (dockerhub-tag-cleanup.yml, 07:00 UTC) have
+    # 06:00 UTC) and Monday cleanup (ecr-public-tag-cleanup.yml, 07:00 UTC) have
     # finished. Keeps the Scorecard score in sync with any weekly change in
     # pinned-dependency posture.
     - cron: "0 6 * * 2"
