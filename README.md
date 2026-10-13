@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="aws-kubectl logo" width="128">
+</p>
+
 # aws-kubectl 🛠️
 
 Ubuntu 26.04 image with AWS CLI v2 and kubectl, for CI jobs and in-cluster scripts. Published for `linux/amd64` and `linux/arm64`.
