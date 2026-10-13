@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Images publish to ECR Public instead of Docker Hub.** GitHub-hosted
+  runners build `linux/amd64` and `linux/arm64` and upload an OCI layout.
+  `eks-dev-small` pushes `public.ecr.aws/grasshopper/aws-kubectl` with the
+  runner's IAM role. Exact semver, `sha-*`, and `kube-*` tags are not moved
+  once they exist. `linux/arm/v7` and `linux/386` are not built: AWS CLI v2
+  has no installer for them. Docker Hub login, the Hub description sync, and
+  the Hub tag-cleanup workflow are removed. Sha-only digests older than 90
+  days are deleted on ECR Public by digest.
+
 ### Fixed
 
 - **The pinning claim names its one exception.** The README said every

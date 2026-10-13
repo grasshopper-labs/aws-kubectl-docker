@@ -1,0 +1,50 @@
+name: ECR Public tag cleanup
+
+# Deletes sha-* images older than 90 days from ECR Public.
+# Runs on eks-dev-small because that runner's IAM role can call ecr-public.
+# A digest is deleted only when every tag on it is sha-<hex>. Deleting by
+# digest would otherwise remove latest, edge, or a semver tag that shares it.
+#
+# Schedule is an hour after the Monday publish. A manual run lists only,
+# unless dry_run is set to false.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (list only, no deletion)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+concurrency:
+  group: ecr-public-tag-cleanup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ECR_REPOSITORY: aws-kubectl
+  ECR_REGION: us-east-1
+
+jobs:
+  cleanup:
+    name: Delete sha-only images older than 90 days
+    runs-on: eks-dev-small
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Delete stale sha-only images
+        env:
+          # Scheduled runs have no input and delete. A manual run defaults
+          # to listing only.
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: ./scripts/cleanup-ecr-public-sha-tags.sh

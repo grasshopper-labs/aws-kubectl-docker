@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for heyvaldemar/aws-kubectl images.
+# Smoke test for the aws-kubectl image.
 # Verifies the advertised toolchain is present, working, and consistent with
 # the /etc/kube-version marker baked in at build time.
 set -euo pipefail

@@ -4,14 +4,18 @@
 # noise. Safe by default (dry-run); requires explicit "DELETE" typed
 # confirmation in --execute mode.
 #
+# This script talks to Docker Hub only. It does not see
+# public.ecr.aws/grasshopper/aws-kubectl. Ongoing sha-* cleanup for that
+# registry is .github/workflows/ecr-public-tag-cleanup.yml.
+#
 # Usage:
 #   ./scripts/cleanup-legacy-tags.sh [--dry-run|--execute]
 #
 # The PAT is read from $DOCKERHUB_PAT if set, otherwise prompted interactively
 # (input hidden). PAT must have Read/Write/Delete scopes on the target repo.
 #
-# Ongoing prevention of sha-* tag accumulation is handled by the separate
-# workflow .github/workflows/dockerhub-tag-cleanup.yml.
+# Ongoing prevention of sha-* tag accumulation on ECR Public is handled by
+# .github/workflows/ecr-public-tag-cleanup.yml.
 set -euo pipefail
 
 REPO="heyvaldemar/aws-kubectl"

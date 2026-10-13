@@ -17,12 +17,12 @@ name: Release Assets
 #
 #   cosign verify-blob <repo>-<tag>.tar.gz \
 #     --bundle <repo>-<tag>.tar.gz.sigstore.json \
-#     --certificate-identity-regexp '^https://github.com/heyvaldemar/<repo>/' \
+#     --certificate-identity-regexp '^https://github.com/grasshopper-labs/<repo>/' \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
 #
 #   slsa-verifier verify-artifact <repo>-<tag>.tar.gz \
 #     --provenance-path <repo>-<tag>.intoto.jsonl \
-#     --source-uri github.com/heyvaldemar/<repo>
+#     --source-uri github.com/grasshopper-labs/<repo>
 #
 # Runs when a release is published; add --source-tag <tag> to the second
 # command for those, since the run that signed them ran on the tag. Started

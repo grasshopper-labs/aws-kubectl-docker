@@ -1,4 +1,22 @@
-name: Publish Docker Image
+name: Publish image
+
+# GitHub-hosted runners build the image. They have no AWS credentials.
+# eks-dev-small pushes it. That runner's IAM role is the credential; there
+# are no AWS keys in GitHub secrets.
+#
+# Platforms are linux/amd64 and linux/arm64. Ubuntu 26.04 also publishes
+# linux/arm/v7 (and not linux/386), but AWS CLI v2 ships installers only for
+# x86_64 and aarch64, and the Dockerfile rejects every other TARGETARCH.
+#
+# eks-dev-small is assumed to have docker and aws CLI v2, plus curl, tar, and
+# sha256sum so the push job can install pinned crane and cosign binaries.
+# It is not assumed to have sudo, skopeo, crane, cosign, or jq. The Actions
+# runner must be new enough for Node 24 actions (runner 2.327.1 or newer):
+# checkout and download-artifact both run on node24.
+#
+# ECR Public API calls use us-east-1, the only region that serves them.
+# public.ecr.aws/grasshopper/aws-kubectl must already exist. This workflow
+# does not create the repository.
 
 on:
   push:
@@ -18,7 +36,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  IMAGE_NAME: heyvaldemar/aws-kubectl
+  IMAGE_NAME: public.ecr.aws/grasshopper/aws-kubectl
+  ECR_REPOSITORY: aws-kubectl
+  ECR_REGION: us-east-1
 
 jobs:
   lint:
@@ -42,6 +62,12 @@ jobs:
           shellcheck --version
           shopt -s nullglob globstar
           shellcheck scripts/**/*.sh
+
+      - name: Publish script self-check
+        run: |
+          ./scripts/push-ecr-public.sh --self-check
+          ./scripts/cleanup-ecr-public-sha-tags.sh --self-check
+          python3 scripts/check-oci-layout.py --self-check
 
   test:
     name: Test the image before it is published, and show the test each violation
@@ -69,19 +95,18 @@ jobs:
         run: python3 tests/plant-violations.py -- bash -c 'docker build -q -t aws-kubectl:plant . >/dev/null && ./scripts/smoke-test.sh aws-kubectl:plant'
 
   build:
-    name: Build and Publish Docker Image
+    name: Build multi-arch OCI archive
     runs-on: ubuntu-latest
     # Nothing is published that the test has not passed.
     needs: [lint, test]
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
-      packages: write
       id-token: write
       attestations: write
-      security-events: write
     outputs:
-      digest: ${{ steps.build.outputs.digest }}
+      digest: ${{ steps.layout.outputs.digest }}
+      tags: ${{ steps.tags.outputs.tags }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -93,35 +118,6 @@ jobs:
           version="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Resolved kubectl version: $version"
-
-      - name: Is this kubectl version's tag still free?
-        # kube-<version> is immutable on Docker Hub: it names the first image
-        # that shipped this kubectl and can never be moved. A release that keeps
-        # the same kubectl must leave it where it is, or the push is refused
-        # after the version tags are already out and nothing gets signed.
-        id: kubetag
-        env:
-          KUBE_VERSION: ${{ steps.kube.outputs.version }}
-        run: |
-          set -euo pipefail
-          code="$(curl -s -o /dev/null -w '%{http_code}' "https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/kube-${KUBE_VERSION}")"
-          case "$code" in
-            200) echo "free=false" >> "$GITHUB_OUTPUT"; echo "kube-${KUBE_VERSION} already names an image; it stays where it is" ;;
-            404) echo "free=true" >> "$GITHUB_OUTPUT"; echo "kube-${KUBE_VERSION} is free" ;;
-            *) echo "::error::Docker Hub answered $code for kube-${KUBE_VERSION}; cannot tell whether the tag is free"; exit 1 ;;
-          esac
-
-      - name: Is sha-<commit> still free on Docker Hub
-        id: shatag
-        run: |
-          set -euo pipefail
-          tag="sha-${GITHUB_SHA::7}"
-          code="$(curl -s -o /dev/null -w '%{http_code}' "https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${tag}")"
-          case "$code" in
-            200) echo "free=false" >> "$GITHUB_OUTPUT"; echo "${tag} already names an image; this build does not try to move it" ;;
-            404) echo "free=true" >> "$GITHUB_OUTPUT"; echo "${tag} is free" ;;
-            *) echo "::error::Docker Hub answered $code for ${tag}; cannot tell whether the tag is free"; exit 1 ;;
-          esac
 
       - name: Compute build metadata
         id: meta-build
@@ -136,13 +132,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
-      - name: Login to Docker Hub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Docker image metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -150,11 +139,10 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           flavor: |
             latest=false
-          # sha-<commit> is emitted only while Docker Hub does not hold it. The tag
-          # is immutable there, and any run that rebuilds a commit already
-          # published (a release tag, the weekly schedule, a manual dispatch)
-          # would try to move it, fail after pushing the other tags, and skip
-          # signing. That is how v2.2.0 shipped unsigned.
+          # sha-<commit> is emitted for branch runs (push to main, the weekly
+          # schedule, a manual dispatch). The push job leaves the tag alone
+          # when ECR Public already has it, so a rebuild cannot move it.
+          # kube-<version> is emitted for release tags and treated the same way.
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=edge,enable={{is_default_branch}}
@@ -162,8 +150,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha,prefix=sha-,format=short,enable=${{ github.ref_type == 'branch' && steps.shatag.outputs.free == 'true' }}
-            type=raw,value=kube-${{ steps.kube.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/') && steps.kubetag.outputs.free == 'true' }}
+            type=sha,prefix=sha-,format=short,enable=${{ github.ref_type == 'branch' }}
+            type=raw,value=kube-${{ steps.kube.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
           labels: |
             org.opencontainers.image.title=aws-kubectl
             org.opencontainers.image.description=Ubuntu 26.04 image bundling AWS CLI v2, kubectl, jq, envsubst, curl and ca-certificates for CI/CD and local tooling.
@@ -171,17 +159,29 @@ jobs:
             org.opencontainers.image.licenses=MIT
             io.heyvaldemar.kubectl.version=${{ steps.kube.outputs.version }}
 
-      - name: Build and push
+      - name: Export tag list
+        id: tags
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          {
+            echo "tags<<EOF"
+            printf '%s\n' "$TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build OCI archive
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        timeout-minutes: 20
+        timeout-minutes: 35
         with:
           context: .
           file: Dockerfile
+          # amd64 + arm64 only. See the header comment.
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          pull: true
-          tags: ${{ steps.meta.outputs.tags }}
+          # Tags are applied on the push runner. Passing them here makes
+          # buildx write one layout entry per tag, which the push rejects.
+          outputs: type=oci,dest=${{ runner.temp }}/aws-kubectl.oci.tar
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             KUBE_VERSION=${{ steps.kube.outputs.version }}
@@ -192,50 +192,76 @@ jobs:
           sbom: true
           provenance: mode=max
 
+      - name: Check the OCI layout has one multi-arch index
+        id: layout
+        env:
+          ACTION_DIGEST: ${{ steps.build.outputs.digest }}
+          OCI_TAR: ${{ runner.temp }}/aws-kubectl.oci.tar
+        run: |
+          set -euo pipefail
+          index="${RUNNER_TEMP}/oci-index.json"
+          tar -xOf "$OCI_TAR" index.json > "$index"
+          digest=$(python3 scripts/check-oci-layout.py "$index")
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "Layout digest: ${digest}"
+
       - name: Attest build provenance
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          # Docker Hub OCI referrers credential handoff is unreliable here; the
-          # attestation remains available via GitHub Attestations storage.
+          subject-digest: ${{ steps.layout.outputs.digest }}
+          # This job has no ECR credentials. The attestation stays in GitHub.
+          # BuildKit's own SBOM and provenance travel inside the OCI archive
+          # and are pushed with the image.
           push-to-registry: false
 
-      - name: Install cosign
+      - name: Upload OCI archive
         if: github.event_name != 'pull_request'
-        # Install Cosign v2.6.1 explicitly: cosign-installer v4 defaults to Cosign
-        # v3.x, which changes container signature storage to OCI 1.1 referring
-        # artifacts. Docker Hub's OCI referrer credential handoff proved unreliable
-        # in Phase 2 (see hotfix #20). Cosign v2 keeps tag-based .sig storage which
-        # works reliably on Docker Hub today. Full Cosign v3 migration is deferred
-        # to a separate tracked project.
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          cosign-release: "v2.6.1"
+          name: aws-kubectl-oci
+          path: ${{ runner.temp }}/aws-kubectl.oci.tar
+          if-no-files-found: error
+          retention-days: 1
+          # Layer blobs are already compressed; deflating the tar costs time.
+          compression-level: 0
+          overwrite: true
 
-      - name: Sign image with cosign (keyless)
-        if: github.event_name != 'pull_request'
+  push:
+    name: Push to ECR Public
+    runs-on: eks-dev-small
+    needs: build
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Cosign keyless signing uses the GitHub Actions OIDC token, not AWS.
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download OCI archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: aws-kubectl-oci
+          path: oci-image
+
+      - name: Push and sign
         env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          set -euo pipefail
-          if [ -z "${TAGS}" ] || [ -z "${DIGEST}" ]; then
-            echo "ERROR: TAGS or DIGEST is empty" >&2
-            exit 1
-          fi
-          echo "${TAGS}" | while IFS= read -r tag; do
-            [ -z "$tag" ] && continue
-            echo "Signing: ${tag}@${DIGEST}"
-            cosign sign --yes "${tag}@${DIGEST}"
-          done
-          echo "All tags signed successfully"
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          ECR_REGION: ${{ env.ECR_REGION }}
+          OCI_TAR: oci-image/aws-kubectl.oci.tar
+          TAGS: ${{ needs.build.outputs.tags }}
+          EXPECTED_DIGEST: ${{ needs.build.outputs.digest }}
+        run: ./scripts/push-ecr-public.sh
 
   scan-trivy:
     name: Scan published image with Trivy
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, push]
     if: github.event_name != 'pull_request'
     timeout-minutes: 10
     # NO continue-on-error, and the difference is not cosmetic. The action's
@@ -268,23 +294,3 @@ jobs:
         with:
           sarif_file: trivy.sarif
           category: trivy
-
-  dockerhub-description:
-    name: Sync Docker Hub description
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    timeout-minutes: 5
-    permissions: {}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Update Docker Hub description
-        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.IMAGE_NAME }}
-          short-description: "AWS CLI v2 + kubectl on Ubuntu 26.04. Multi-arch (amd64/arm64), kubectl checksum-verified."
-          readme-filepath: ./README.md
