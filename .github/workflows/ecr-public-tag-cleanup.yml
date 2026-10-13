@@ -11,7 +11,8 @@ name: ECR Public tag cleanup
 #
 # This workflow has no pull_request trigger. The job if is still an allowlist,
 # so adding one later does not schedule the runner. Schedule and manual runs
-# must be on main. Forks of this repository do not run it either.
+# must be on main. Only grasshopper-labs/aws-kubectl-docker runs it.
+# repository.fork is unusable here: this repository is itself a fork.
 
 on:
   schedule:
@@ -43,7 +44,7 @@ jobs:
     name: Delete sha-only images older than 90 days
     runs-on: ecr-public-publisher
     if: >-
-      github.event.repository.fork == false &&
+      github.repository == 'grasshopper-labs/aws-kubectl-docker' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 10
