@@ -8,7 +8,7 @@
 | `v1-maintenance` tag (pre-v2.0, root default, frozen)           | :x: end of support **2026-07-20**; last rebuilt 2026-04-22 |
 | Older `1.x` without the `v1-maintenance` tag                   | :x:                |
 
-`v2.0.0` (2026-04-21) changed the default runtime user to non-root (UID 10001, GID 0). The `v1-maintenance` tag was offered to `1.x` users for security updates through 2026-07-20 (90 days after the v2.0 release). Its last rebuild was on 2026-04-22, so no security updates shipped in that window, and the tag is now frozen. Migrate to `2.x`. See the README "Breaking Changes in v2.0" section for the migration guide.
+`v2.0.0` (2026-04-21) changed the default runtime user to non-root (UID 10001, GID 0). The `v1-maintenance` tag was offered to `1.x` users for security updates through 2026-07-20 (90 days after the v2.0 release). Its last rebuild was on 2026-04-22, so no security updates shipped in that window, and the tag is now frozen. Migrate to `2.x`. The README documents the non-root user (UID 10001, GID 0) and the `/home/app` credential paths.
 
 ## Reporting a vulnerability
 
