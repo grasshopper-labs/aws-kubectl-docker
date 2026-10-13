@@ -3,8 +3,8 @@
 #
 # The GitHub-hosted build job uploads one OCI layout tar (linux/amd64 and
 # linux/arm64, plus the BuildKit attestations). This script runs where the AWS
-# credentials are: the self-hosted runner's IAM role. It does not read AWS keys
-# from the environment.
+# credentials are: the ecr-public-publisher pod's IAM role (IRSA or pod
+# identity). It does not read AWS keys from the environment.
 #
 # Assumed already installed: docker, aws CLI v2, curl, tar, sha256sum, bash.
 # Installed here, into a temp directory, after a checksum check: crane v0.22.1
