@@ -6,8 +6,10 @@
 # A sha-* tag that still shares its digest with latest, edge, a semver tag,
 # or a cosign signature (sha256-*.sig) is left alone.
 #
-# Assumed already installed: aws CLI v2, bash, GNU date. No jq, no sudo.
-# The repository must already exist. API region is us-east-1.
+# Assumed already installed: bash, GNU date, curl, tar, sha256sum, and either
+# unzip or python3. AWS CLI v2 is installed into a temp directory when missing
+# (ensure-aws-cli.sh). No jq, no sudo. The repository must already exist.
+# API region is us-east-1.
 set -euo pipefail
 
 sha_only() {
@@ -65,6 +67,13 @@ case "$DRY_RUN" in
 esac
 
 export AWS_PAGER=""
+export AWS_CLI_AUTO_PROMPT=off
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/ensure-aws-cli.sh"
+ensure_aws_cli
+
 cutoff=$(date -u -d '90 days ago' +%s)
 echo "Deleting sha-only images pushed before $(date -u -d "@${cutoff}" +%Y-%m-%dT%H:%M:%SZ) (dry_run=${DRY_RUN})"
 

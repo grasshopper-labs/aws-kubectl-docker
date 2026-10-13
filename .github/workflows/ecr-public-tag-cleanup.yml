@@ -2,7 +2,8 @@ name: ECR Public tag cleanup
 
 # Deletes sha-* images older than 90 days from ECR Public.
 # Runs on ecr-public-publisher. That runner's pod identity can call
-# ecr-public; there are no AWS keys in GitHub secrets.
+# ecr-public; there are no AWS keys in GitHub secrets. AWS CLI v2 is
+# installed by the cleanup script when the runner image does not ship it.
 # A digest is deleted only when every tag on it is sha-<hex>. Deleting by
 # digest would otherwise remove latest, edge, or a semver tag that shares it.
 #

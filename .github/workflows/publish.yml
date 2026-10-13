@@ -17,10 +17,10 @@ name: Publish image
 # linux/arm/v7 (and not linux/386), but AWS CLI v2 ships installers only for
 # x86_64 and aarch64, and the Dockerfile rejects every other TARGETARCH.
 #
-# ecr-public-publisher is assumed to have docker and aws CLI v2, plus curl,
-# tar, and sha256sum so the push job can install pinned crane and cosign
-# binaries.
-# It is not assumed to have sudo, skopeo, crane, cosign, or jq. The Actions
+# ecr-public-publisher is assumed to have docker, curl, tar, sha256sum, bash,
+# and either unzip or python3. The push script installs pinned AWS CLI v2,
+# crane, and cosign into a temp directory (no sudo).
+# It is not assumed to have aws, sudo, skopeo, crane, cosign, or jq. The Actions
 # runner must be new enough for Node 24 actions (runner 2.327.1 or newer):
 # checkout and download-artifact both run on node24.
 #

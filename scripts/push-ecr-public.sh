@@ -6,9 +6,10 @@
 # credentials are: the ecr-public-publisher pod's IAM role (IRSA or pod
 # identity). It does not read AWS keys from the environment.
 #
-# Assumed already installed: docker, aws CLI v2, curl, tar, sha256sum, bash.
-# Installed here, into a temp directory, after a checksum check: crane v0.22.1
-# and cosign v2.6.1. No sudo. crane and cosign are static binaries.
+# Assumed already installed: docker, curl, tar, sha256sum, bash, and either
+# unzip or python3. Installed here, into a temp directory, after a checksum
+# check: AWS CLI v2 (via ensure-aws-cli.sh), crane v0.22.1, and cosign v2.6.1.
+# No sudo. crane and cosign are static binaries; aws uses the official installer.
 #
 # ECR Public's API is only in us-east-1. The repository must already exist in
 # the account that owns the public alias; this script does not create it.
@@ -89,6 +90,11 @@ fi
 # A runner with a pager configured would block on describe-images.
 export AWS_PAGER=""
 export AWS_CLI_AUTO_PROMPT=off
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/ensure-aws-cli.sh"
+ensure_aws_cli
 
 install_tools() {
   local bin arch asset sum url tmp
