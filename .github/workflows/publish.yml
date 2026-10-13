@@ -6,11 +6,12 @@ name: Publish image
 # in GitHub secrets.
 #
 # That runner's jobs are allowlisted to push, schedule, and workflow_dispatch
-# only from main (publish also allows v* tags), and only when this repository
-# is not a fork. pull_request and pull_request_target never select it.
-# Fork pull requests can still change a workflow file, so Actions must keep
-# requiring approval before running
-# workflows from outside collaborators.
+# only from main (publish also allows v* tags), and only when
+# github.repository is grasshopper-labs/aws-kubectl-docker. This repository
+# is itself a fork, so repository.fork is not a usable check. pull_request
+# and pull_request_target never select it. Fork pull requests can still
+# change a workflow file, so Actions must keep requiring approval before
+# running workflows from outside collaborators.
 #
 # Platforms are linux/amd64 and linux/arm64. Ubuntu 26.04 also publishes
 # linux/arm/v7 (and not linux/386), but AWS CLI v2 ships installers only for
@@ -241,12 +242,13 @@ jobs:
     name: Push to ECR Public
     # Literal label, not an expression a pull_request can satisfy by accident.
     # The if below is an allowlist: the job is not queued for any other event,
-    # including pull_request, pull_request_target, and runs where this
-    # repository is a fork. GitHub evaluates if before assigning a runner.
+    # including pull_request and pull_request_target, and any repository
+    # other than grasshopper-labs/aws-kubectl-docker. GitHub evaluates if
+    # before assigning a runner.
     runs-on: ecr-public-publisher
     needs: build
     if: >-
-      github.event.repository.fork == false &&
+      github.repository == 'grasshopper-labs/aws-kubectl-docker' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) &&
       (github.event_name == 'push' ||
        github.event_name == 'schedule' ||
