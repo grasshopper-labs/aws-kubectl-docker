@@ -1,15 +1,23 @@
 name: Publish image
 
 # GitHub-hosted runners build the image. They have no AWS credentials.
-# eks-dev-small pushes it. That runner's IAM role is the credential; there
-# are no AWS keys in GitHub secrets.
+# ecr-public-publisher pushes it. That runner is a repo-scoped ARC runner
+# whose pod has an IAM role (IRSA or pod identity). There are no AWS keys
+# in GitHub secrets.
+#
+# That runner's jobs are allowlisted to push of main, v* tags, schedule, and
+# workflow_dispatch, and only when this repository is not a fork. pull_request
+# and pull_request_target never select it. Fork pull requests can still change
+# a workflow file, so Actions must keep requiring approval before running
+# workflows from outside collaborators.
 #
 # Platforms are linux/amd64 and linux/arm64. Ubuntu 26.04 also publishes
 # linux/arm/v7 (and not linux/386), but AWS CLI v2 ships installers only for
 # x86_64 and aarch64, and the Dockerfile rejects every other TARGETARCH.
 #
-# eks-dev-small is assumed to have docker and aws CLI v2, plus curl, tar, and
-# sha256sum so the push job can install pinned crane and cosign binaries.
+# ecr-public-publisher is assumed to have docker and aws CLI v2, plus curl,
+# tar, and sha256sum so the push job can install pinned crane and cosign
+# binaries.
 # It is not assumed to have sudo, skopeo, crane, cosign, or jq. The Actions
 # runner must be new enough for Node 24 actions (runner 2.327.1 or newer):
 # checkout and download-artifact both run on node24.
@@ -230,9 +238,18 @@ jobs:
 
   push:
     name: Push to ECR Public
-    runs-on: eks-dev-small
+    # Literal label, not an expression a pull_request can satisfy by accident.
+    # The if below is an allowlist: the job is not queued for any other event,
+    # including pull_request, pull_request_target, and runs where this
+    # repository is a fork. GitHub evaluates if before assigning a runner.
+    runs-on: ecr-public-publisher
     needs: build
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event.repository.fork == false &&
+      ((github.event_name == 'push' &&
+        (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+       github.event_name == 'schedule' ||
+       github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
     permissions:
       contents: read

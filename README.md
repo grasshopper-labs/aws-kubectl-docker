@@ -299,7 +299,7 @@ docker build \
 
 ### Multi-arch build & push (amd64 + arm64)
 
-CI builds `linux/amd64` and `linux/arm64` on GitHub-hosted runners and pushes the index from a self-hosted runner. `linux/arm/v7` is not included: the Ubuntu 26.04 base publishes it, and does not publish `linux/386`, but AWS CLI v2 ships installers only for x86_64 and aarch64.
+CI builds `linux/amd64` and `linux/arm64` on GitHub-hosted runners and pushes the index from the `ecr-public-publisher` runner. That runner is not used for pull requests or forks. `linux/arm/v7` is not included: the Ubuntu 26.04 base publishes it, and does not publish `linux/386`, but AWS CLI v2 ships installers only for x86_64 and aarch64.
 
 A manual push to the same registry needs an ECR Public login in `us-east-1` (the only region for that API). The repository must already exist.
 

@@ -1,12 +1,17 @@
 name: ECR Public tag cleanup
 
 # Deletes sha-* images older than 90 days from ECR Public.
-# Runs on eks-dev-small because that runner's IAM role can call ecr-public.
+# Runs on ecr-public-publisher. That runner's pod identity can call
+# ecr-public; there are no AWS keys in GitHub secrets.
 # A digest is deleted only when every tag on it is sha-<hex>. Deleting by
 # digest would otherwise remove latest, edge, or a semver tag that shares it.
 #
 # Schedule is an hour after the Monday publish. A manual run lists only,
 # unless dry_run is set to false.
+#
+# This workflow has no pull_request trigger. The job if is still an allowlist,
+# so adding one later does not schedule the runner. Forks of this repository
+# do not run it either.
 
 on:
   schedule:
@@ -36,7 +41,10 @@ env:
 jobs:
   cleanup:
     name: Delete sha-only images older than 90 days
-    runs-on: eks-dev-small
+    runs-on: ecr-public-publisher
+    if: >-
+      github.event.repository.fork == false &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 10
     steps:
       - name: Checkout
